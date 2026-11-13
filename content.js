@@ -16,7 +16,7 @@
   const LEGACY_METHOD_BUTTON_LABEL = "Select merge method";
   const MENU_ITEM_LABEL = "Squash and merge";
 
-  let appliedForUrl = null;
+  const appliedKeys = new Set();
   let inProgress = false;
   let mainObserver = null;
   let debounceTimer = 0;
@@ -269,50 +269,73 @@
     const dialogOpen = Boolean(
       document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')
     );
-    const handleKey = dialogOpen ? url + "::dialog" : url;
-    if (appliedForUrl === handleKey) return;
 
-    const attempts = attemptCounts.get(handleKey) || 0;
-    if (attempts >= 5) return;
-
-    const mergeBox = getMergeBox();
-    if (!mergeBox) return;
-
-    const action = findExactControl(PRIMARY_LABELS, mergeBox);
-    if (!action) return;
-
-    const currentLabel = getControlLabel(action);
-    if (currentLabel === SQUASH_LABEL) {
-      appliedForUrl = handleKey;
-      return;
+    // Keep the cases separate: handle only the active case.
+    const candidates = [];
+    const preferred = findPreferredMergeButton();
+    if (preferred && isInDialog(preferred)) {
+      const b = getPreviewMergeBox();
+      if (b) candidates.push({ box: b, key: url + "::dialog" });
+    } else {
+      const classic = getClassicMergeBox();
+      if (classic) {
+        candidates.push({ box: classic, key: url });
+      } else {
+        const pm = getPreviewMergeBox();
+        if (pm) candidates.push({ box: pm, key: url });
+      }
     }
 
-    const menuButton = findMethodButton(mergeBox);
-    if (!menuButton) return;
+    // De-duplicate by key.
+    const unique = [];
+    const seen = new Set();
+    for (const c of candidates) {
+      if (seen.has(c.key)) continue;
+      seen.add(c.key);
+      unique.push(c);
+    }
 
-    attemptCounts.set(handleKey, attempts + 1);
+    const toHandle = unique.filter((c) => !appliedKeys.has(c.key));
+    if (toHandle.length === 0) return;
+
+    // Respect per-key attempt limits.
+    const allowed = toHandle.filter((c) => (attemptCounts.get(c.key) || 0) < 5);
+    if (allowed.length === 0) return;
+
     inProgress = true;
     try {
-      if (menuButton.getAttribute("aria-expanded") !== "true") {
-        menuButton.click();
-      }
+      for (const { box, key } of allowed) {
+        const action = findExactControl(PRIMARY_LABELS, box);
+        if (!action) continue;
 
-      const item = await waitFor(() => findMenuItem(MENU_ITEM_LABEL));
-      if (!item) {
-        return;
-      }
-      item.click();
+        const currentLabel = getControlLabel(action);
+        if (currentLabel === SQUASH_LABEL) {
+          appliedKeys.add(key);
+          continue;
+        }
 
-      await waitFor(() => {
-        const box = getMergeBox() || document;
-        const a = findExactControl(PRIMARY_LABELS, box);
-        return a && getControlLabel(a) === SQUASH_LABEL ? a : null;
-      }, 3000);
+        attemptCounts.set(key, (attemptCounts.get(key) || 0) + 1);
 
-      const finalBox = getMergeBox() || document;
-      const finalAction = findExactControl(PRIMARY_LABELS, finalBox);
-      if (finalAction && getControlLabel(finalAction) === SQUASH_LABEL) {
-        appliedForUrl = handleKey;
+        const menuButton = findMethodButton(box);
+        if (!menuButton) continue;
+
+        if (menuButton.getAttribute("aria-expanded") !== "true") {
+          menuButton.click();
+        }
+
+        const item = await waitFor(() => findMenuItem(MENU_ITEM_LABEL));
+        if (!item) continue;
+        item.click();
+
+        await waitFor(() => {
+          const a = findExactControl(PRIMARY_LABELS, box);
+          return a && getControlLabel(a) === SQUASH_LABEL ? a : null;
+        }, 3000);
+
+        const finalAction = findExactControl(PRIMARY_LABELS, box);
+        if (finalAction && getControlLabel(finalAction) === SQUASH_LABEL) {
+          appliedKeys.add(key);
+        }
       }
     } catch (e) {
       // ignore
@@ -329,7 +352,7 @@
   }
 
   function resetForNavigation() {
-    appliedForUrl = null;
+    appliedKeys.clear();
     inProgress = false;
     attemptCounts.clear();
   }
