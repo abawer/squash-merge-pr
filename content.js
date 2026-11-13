@@ -113,7 +113,9 @@
     const prioritized = all.filter((el) => {
       const role = (el.getAttribute("role") || "").toLowerCase();
       if (role.startsWith("menuitem") || role === "option") return true;
-      return Boolean(el.closest && el.closest('[role="menu"], [role="listbox"], [role="dialog"]'));
+      // Only treat as a menu entry if it sits inside an actual menu/listbox,
+      // not anywhere within the dialog (avoids "Confirm ..." buttons).
+      return Boolean(el.closest && el.closest('[role="menu"], [role="listbox"]'));
     });
     // Remove the main merge buttons from the fallback pool.
     const fallback = all.filter((el) => {
@@ -126,6 +128,7 @@
         if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
         if (!isElementVisible(el)) continue;
         const text = getControlLabel(el).toLowerCase();
+        if (text.includes("confirm")) continue;
         if (text === lower || text.includes(lower)) {
           if (el.getAttribute("aria-haspopup")) continue;
           return el;
