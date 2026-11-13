@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "GitHub Default Squash Merge",
   "version": "1.0.0",
-  "description": "Defaults the GitHub pull request merge button to \"Squash and merge\" whenever merging is available.",
+  "description": "Defaults the GitHub pull request merge button to \"Squash and merge\" whenever merging is available. Does not merge automatically.",
   "content_scripts": [
     {
       "matches": [
