@@ -210,6 +210,11 @@
     if (preferred && isInDialog(preferred)) {
       return getPreviewMergeBox();
     }
+    // If a dialog is open but its merge button hasn't rendered yet, wait
+    // instead of falling back to the background merge box.
+    if (document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')) {
+      return null;
+    }
     const classic = getClassicMergeBox();
     if (classic) return classic;
     return getPreviewMergeBox();
