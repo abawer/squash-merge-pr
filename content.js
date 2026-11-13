@@ -109,20 +109,16 @@
     const all = Array.from(
       document.querySelectorAll('button, [role^="menuitem"], a, [role="option"]')
     );
-    // Prefer actual menu entries: role menuitem/option, or anything inside a menu/listbox/popover.
-    const prioritized = all.filter((el) => {
+    // Only accept real menu entries. Confirm buttons are not menu items.
+    const menuItems = all.filter((el) => {
       const role = (el.getAttribute("role") || "").toLowerCase();
       if (role.startsWith("menuitem") || role === "option") return true;
-      // Only treat as a menu entry if it sits inside an actual menu/listbox,
-      // not anywhere within the dialog (avoids "Confirm ..." buttons).
       return Boolean(el.closest && el.closest('[role="menu"], [role="listbox"]'));
     });
-    // Remove the main merge buttons from the fallback pool.
-    const fallback = all.filter((el) => {
-      const cls = (el.className || "").toString();
-      return !cls.includes("flex-1");
-    });
-    const pools = prioritized.length ? [prioritized, fallback] : [fallback, all];
+    const inMenu = all.filter((el) => Boolean(el.closest && el.closest('[role="menu"], [role="listbox"]')));
+    const pools = [];
+    if (menuItems.length) pools.push(menuItems);
+    if (inMenu.length && inMenu !== menuItems) pools.push(inMenu);
     for (const pool of pools) {
       for (const el of pool) {
         if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
