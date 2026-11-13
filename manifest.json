@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "GitHub Default Squash Merge",
+  "version": "1.0.0",
+  "description": "Defaults the GitHub pull request merge button to \"Squash and merge\" whenever merging is available.",
+  "content_scripts": [
+    {
+      "matches": [
+        "https://github.com/*/*/pull/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
