@@ -109,12 +109,18 @@
     const all = Array.from(
       document.querySelectorAll('button, [role^="menuitem"], a, [role="option"]')
     );
-    // Prefer actual menu entries over merge buttons that happen to share the label.
+    // Prefer actual menu entries: role menuitem/option, or anything inside a menu/listbox/popover.
     const prioritized = all.filter((el) => {
       const role = (el.getAttribute("role") || "").toLowerCase();
-      return role.startsWith("menuitem") || role === "option";
+      if (role.startsWith("menuitem") || role === "option") return true;
+      return Boolean(el.closest && el.closest('[role="menu"], [role="listbox"], [role="dialog"]'));
     });
-    const pools = prioritized.length ? [prioritized, all] : [all];
+    // Remove the main merge buttons from the fallback pool.
+    const fallback = all.filter((el) => {
+      const cls = (el.className || "").toString();
+      return !cls.includes("flex-1");
+    });
+    const pools = prioritized.length ? [prioritized, fallback] : [fallback, all];
     for (const pool of pools) {
       for (const el of pool) {
         if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
@@ -122,11 +128,6 @@
         const text = getControlLabel(el).toLowerCase();
         if (text === lower || text.includes(lower)) {
           if (el.getAttribute("aria-haspopup")) continue;
-          const role = (el.getAttribute("role") || "").toLowerCase();
-          // In the fallback pool, skip primary merge buttons that merely share the label.
-          if (pool === all && !role.startsWith("menuitem") && role !== "option") {
-            if (PRIMARY_LABELS.includes(getControlLabel(el))) continue;
-          }
           return el;
         }
       }
