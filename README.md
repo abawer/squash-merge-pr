@@ -2,9 +2,9 @@
 
 Chrome extension that automatically selects **Squash and merge** in GitHub pull request merge boxes whenever it is available.
 
-[![Squash and merge](assets/squash-merge.png)](https://joeblu.com/blog/2022_02_squash_merge/)
-
 > **Note:** This extension does **not** merge pull requests for you. It only changes the selected merge method to "Squash and merge" when the merge box is available, so your main branch history stays clean and isn't polluted with every individual PR commit message. You still click the merge button yourself.
+
+[![Squash and merge](assets/squash-merge.png)](https://joeblu.com/blog/2022_02_squash_merge/)
 
 It supports both GitHub pull request views: the classic view and the newer preview view.
 
