@@ -92,29 +92,62 @@
 
   function findMenuItem(label) {
     const lower = label.toLowerCase();
-    const candidates = Array.from(
+    const all = Array.from(
       document.querySelectorAll('button, [role^="menuitem"], a, [role="option"]')
     );
-    for (const el of candidates) {
-      if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
-      if (!isElementVisible(el)) continue;
-      const text = getControlLabel(el).toLowerCase();
-      if (text === lower || text.includes(lower)) {
-        if (el.getAttribute("aria-haspopup")) continue;
-        return el;
+    // Prefer actual menu entries over merge buttons that happen to share the label.
+    const prioritized = all.filter((el) => {
+      const role = (el.getAttribute("role") || "").toLowerCase();
+      return role.startsWith("menuitem") || role === "option";
+    });
+    const pools = prioritized.length ? [prioritized, all] : [all];
+    for (const pool of pools) {
+      for (const el of pool) {
+        if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
+        if (!isElementVisible(el)) continue;
+        const text = getControlLabel(el).toLowerCase();
+        if (text === lower || text.includes(lower)) {
+          if (el.getAttribute("aria-haspopup")) continue;
+          const role = (el.getAttribute("role") || "").toLowerCase();
+          // In the fallback pool, skip primary merge buttons that merely share the label.
+          if (pool === all && !role.startsWith("menuitem") && role !== "option") {
+            if (PRIMARY_LABELS.includes(getControlLabel(el))) continue;
+          }
+          return el;
+        }
       }
     }
     return null;
   }
 
   /* =========================================================
+   * Helpers for choosing the active merge box (handles dialogs)
+   * ========================================================= */
+  function isInDialog(el) {
+    return Boolean(el && el.closest && el.closest('[role="dialog"], [aria-modal="true"], dialog'));
+  }
+
+  function findPreferredMergeButton() {
+    const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
+      (b) => PRIMARY_LABELS.includes(getControlLabel(b)) && isElementVisible(b)
+    );
+    if (!buttons.length) return null;
+    const inDialog = buttons.filter(isInDialog);
+    const pool = inDialog.length ? inDialog : buttons;
+    return pool[pool.length - 1];
+  }
+
+  /* =========================================================
    * Classic mode (legacy GitHub merge box)
    * ========================================================= */
   function getClassicMergeBox() {
-    const headings = Array.from(document.querySelectorAll("main h2, h2"));
-    const heading = headings.find(
+    const headings = Array.from(document.querySelectorAll("main h2, h2")).filter(
       (el) => normalizeText(el.textContent) === "Merge info"
     );
+    if (!headings.length) return null;
+    const inDialog = headings.filter(isInDialog);
+    const pool = inDialog.length ? inDialog : headings;
+    const heading = pool[pool.length - 1];
     if (heading && heading.parentElement) return heading.parentElement;
     return null;
   }
@@ -128,7 +161,7 @@
    * Preview / new mode (current GitHub merge box)
    * ========================================================= */
   function getPreviewMergeBox() {
-    const action = findExactControl(PRIMARY_LABELS, document);
+    const action = findPreferredMergeButton();
     if (!action) return null;
     let node = action.parentElement;
     while (node && node !== document.body && node !== document.documentElement) {
@@ -156,14 +189,20 @@
    * Mode dispatch
    * ========================================================= */
   function getMergeBox() {
-    // Classic mode takes priority when its marker is present.
+    // A merge box inside an open dialog takes priority over the
+    // background page's classic merge box.
+    const preferred = findPreferredMergeButton();
+    if (preferred && isInDialog(preferred)) {
+      return getPreviewMergeBox();
+    }
     const classic = getClassicMergeBox();
     if (classic) return classic;
-    // Otherwise treat as preview/new mode.
     return getPreviewMergeBox();
   }
 
   function isClassicMode() {
+    const preferred = findPreferredMergeButton();
+    if (preferred && isInDialog(preferred)) return false;
     return Boolean(getClassicMergeBox());
   }
 
@@ -207,9 +246,13 @@
   async function tryDefaultToSquash() {
     if (inProgress) return;
     const url = location.href;
-    if (appliedForUrl === url) return;
+    const dialogOpen = Boolean(
+      document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')
+    );
+    const handleKey = dialogOpen ? url + "::dialog" : url;
+    if (appliedForUrl === handleKey) return;
 
-    const attempts = attemptCounts.get(url) || 0;
+    const attempts = attemptCounts.get(handleKey) || 0;
     if (attempts >= 5) return;
 
     const mergeBox = getMergeBox();
@@ -220,14 +263,14 @@
 
     const currentLabel = getControlLabel(action);
     if (currentLabel === SQUASH_LABEL) {
-      appliedForUrl = url;
+      appliedForUrl = handleKey;
       return;
     }
 
     const menuButton = findMethodButton(mergeBox);
     if (!menuButton) return;
 
-    attemptCounts.set(url, attempts + 1);
+    attemptCounts.set(handleKey, attempts + 1);
     inProgress = true;
     try {
       if (menuButton.getAttribute("aria-expanded") !== "true") {
@@ -249,7 +292,7 @@
       const finalBox = getMergeBox() || document;
       const finalAction = findExactControl(PRIMARY_LABELS, finalBox);
       if (finalAction && getControlLabel(finalAction) === SQUASH_LABEL) {
-        appliedForUrl = url;
+        appliedForUrl = handleKey;
       }
     } catch (e) {
       // ignore
