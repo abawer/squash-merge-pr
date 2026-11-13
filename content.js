@@ -16,11 +16,11 @@
   const LEGACY_METHOD_BUTTON_LABEL = "Select merge method";
   const MENU_ITEM_LABEL = "Squash and merge";
 
-  const appliedKeys = new Set();
+  const handledBoxes = new Set();
+  const attemptCounts = new Map();
   let inProgress = false;
   let mainObserver = null;
   let debounceTimer = 0;
-  const attemptCounts = new Map();
 
   /* =========================================================
    * Shared utilities
@@ -272,58 +272,54 @@
     });
   }
 
+  function getMergeBoxes() {
+    const buttons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(
+      (b) => PRIMARY_LABELS.includes(getControlLabel(b)) && isElementVisible(b)
+    );
+    const boxes = [];
+    const seen = new Set();
+    for (const btn of buttons) {
+      let node = btn.parentElement;
+      let box = null;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const popups = Array.from(node.querySelectorAll('button, [role="button"]')).filter(
+          (b) => isPopupTrigger(b) && b !== btn
+        );
+        if (popups.length >= 1) {
+          box = node;
+          break;
+        }
+        node = node.parentElement;
+      }
+      if (!box) box = btn.parentElement || document;
+      if (seen.has(box)) continue;
+      seen.add(box);
+      boxes.push(box);
+    }
+    return boxes;
+  }
+
   async function tryDefaultToSquash() {
     if (inProgress) return;
-    const url = location.href;
-    const dialogOpen = Boolean(
-      document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]')
+    const boxes = getMergeBoxes();
+    const toHandle = boxes.filter(
+      (box) => !handledBoxes.has(box) && (attemptCounts.get(box) || 0) < 5
     );
-
-    // Keep the cases separate: handle only the active case.
-    const candidates = [];
-    const preferred = findPreferredMergeButton();
-    if (preferred && isInDialog(preferred)) {
-      const b = getPreviewMergeBox();
-      if (b) candidates.push({ box: b, key: url + "::dialog" });
-    } else {
-      const classic = getClassicMergeBox();
-      if (classic) {
-        candidates.push({ box: classic, key: url });
-      } else {
-        const pm = getPreviewMergeBox();
-        if (pm) candidates.push({ box: pm, key: url });
-      }
-    }
-
-    // De-duplicate by key.
-    const unique = [];
-    const seen = new Set();
-    for (const c of candidates) {
-      if (seen.has(c.key)) continue;
-      seen.add(c.key);
-      unique.push(c);
-    }
-
-    const toHandle = unique.filter((c) => !appliedKeys.has(c.key));
     if (toHandle.length === 0) return;
-
-    // Respect per-key attempt limits.
-    const allowed = toHandle.filter((c) => (attemptCounts.get(c.key) || 0) < 5);
-    if (allowed.length === 0) return;
 
     inProgress = true;
     try {
-      for (const { box, key } of allowed) {
+      for (const box of toHandle) {
         const action = findExactControl(PRIMARY_LABELS, box);
         if (!action) continue;
 
         const currentLabel = getControlLabel(action);
         if (currentLabel === SQUASH_LABEL) {
-          appliedKeys.add(key);
+          handledBoxes.add(box);
           continue;
         }
 
-        attemptCounts.set(key, (attemptCounts.get(key) || 0) + 1);
+        attemptCounts.set(box, (attemptCounts.get(box) || 0) + 1);
 
         const menuButton = findMethodButton(box);
         if (!menuButton) continue;
@@ -344,7 +340,7 @@
 
         const finalAction = findExactControl(PRIMARY_LABELS, box);
         if (finalAction && getControlLabel(finalAction) === SQUASH_LABEL) {
-          appliedKeys.add(key);
+          handledBoxes.add(box);
         }
       }
     } catch (e) {
