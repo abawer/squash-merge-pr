@@ -329,6 +329,7 @@
         if (!menuButton) continue;
 
         if (menuButton.getAttribute("aria-expanded") !== "true") {
+          try { menuButton.focus(); } catch (e) {}
           menuButton.click();
         }
 
