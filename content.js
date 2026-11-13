@@ -142,7 +142,13 @@
    * Helpers for choosing the active merge box (handles dialogs)
    * ========================================================= */
   function isInDialog(el) {
-    return Boolean(el && el.closest && el.closest('[role="dialog"], [aria-modal="true"], dialog'));
+    return Boolean(
+      el &&
+        el.closest &&
+        el.closest(
+          '[role="dialog"], [aria-modal="true"], dialog, [class*="SidePanel"]'
+        )
+    );
   }
 
   function findPreferredMergeButton() {
