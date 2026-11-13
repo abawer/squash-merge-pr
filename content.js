@@ -81,13 +81,27 @@
     return null;
   }
 
+  function hasDropdownCaret(el) {
+    if (!el) return false;
+    const svgs = el.querySelectorAll("svg");
+    for (const svg of svgs) {
+      const cls = (svg.getAttribute("class") || "").toLowerCase();
+      if (cls.includes("triangle-down") || cls.includes("chevron-down")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   function isPopupTrigger(el) {
     if (!el || el.disabled || el.getAttribute("aria-disabled") === "true") {
       return false;
     }
     if (!isElementVisible(el)) return false;
     const hp = el.getAttribute("aria-haspopup");
-    return hp === "true" || hp === "menu" || hp === "listbox";
+    if (hp === "true" || hp === "menu" || hp === "listbox") return true;
+    // Fallback: GitHub renders a down-caret icon in merge-method selectors.
+    return hasDropdownCaret(el);
   }
 
   function findMenuItem(label) {
