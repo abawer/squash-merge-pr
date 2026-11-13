@@ -329,6 +329,7 @@
         if (!item) continue;
         item.click();
         try { menuButton.blur(); } catch (e) {}
+        try { document.body.focus(); } catch (e) {}
 
         await waitFor(() => {
           const a = findExactControl(PRIMARY_LABELS, box);
