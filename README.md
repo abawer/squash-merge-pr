@@ -11,7 +11,7 @@ It supports both GitHub pull request views: the classic view and the newer previ
 ## Install from GitHub release
 
 1. Download the latest release ZIP:
-   https://github.com/abawer/squash-merge-pr/releases/download/v1.0.0/squash-merge-extension.zip
+   https://github.com/abawer/squash-merge-pr/releases/download/v1.0.1/squash-merge-extension.zip
    (or browse all releases: https://github.com/abawer/squash-merge-pr/releases)
 2. Extract the ZIP to a folder on your computer.
 3. Open `chrome://extensions` in Chrome (or `edge://extensions` in Edge).
