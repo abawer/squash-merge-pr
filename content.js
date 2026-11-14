@@ -17,10 +17,116 @@
   const MENU_ITEM_LABEL = "Squash and merge";
 
   const handledBoxes = new Set();
+  const appliedKeys = new Set();
   const attemptCounts = new Map();
   let inProgress = false;
   let mainObserver = null;
   let debounceTimer = 0;
+
+  /* =========================================================
+   * Work indicator badge
+   *
+   * A small floating badge that vibrates while the extension is
+   * actively selecting "Squash and merge". Pure DOM/CSS — no
+   * browser extension APIs — so it behaves identically in every
+   * browser this extension is loaded into. It is temporary: it
+   * appears while work is in progress, stops vibrating once the
+   * pass finishes, and disappears a few seconds later.
+   * ========================================================= */
+  let workBadge = null;
+  let badgeStyleInjected = false;
+  let badgeHideTimer = 0;
+  // Plugin icon (icons/icon32.png) inlined as a data URL so the badge
+  // needs no web_accessible_resources entry and works in any browser.
+  const ICON_DATA_URL = "data:image/png;base64,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";
+
+  function injectBadgeStyle() {
+    if (badgeStyleInjected) return;
+    badgeStyleInjected = true;
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes squash-merge-vibrate {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-3px); }
+        75% { transform: translateX(3px); }
+      }
+      @keyframes squash-merge-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.6); }
+        70% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+      }
+      .squash-merge-work-badge {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 2147483647;
+        display: none;
+        pointer-events: none;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        font: 600 14px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        color: #fff;
+        background: #2da44e;
+        border: 1px solid #1f883d;
+        border-radius: 999px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+        cursor: default;
+        user-select: none;
+      }
+      .squash-merge-work-badge .icon {
+        width: 24px;
+        height: 24px;
+        padding: 2px;
+        background: #fff;
+        border-radius: 6px;
+        box-sizing: border-box;
+      }
+      .squash-merge-work-badge.visible { display: inline-flex; }
+      .squash-merge-work-badge.vibrating { animation: squash-merge-vibrate 0.3s infinite; }
+      .squash-merge-work-badge .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #fff;
+        animation: squash-merge-pulse 1.2s infinite;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  function ensureBadge() {
+    injectBadgeStyle();
+    if (workBadge) return workBadge;
+    workBadge = document.createElement("div");
+    workBadge.className = "squash-merge-work-badge";
+    workBadge.setAttribute("aria-live", "polite");
+    workBadge.setAttribute("role", "status");
+    workBadge.setAttribute("title", "GitHub Default Squash Merge is setting the merge method");
+    workBadge.innerHTML =
+      '<img class="icon" src="' + ICON_DATA_URL + '" alt="">' +
+      '<span class="dot"></span>Squash';
+    (document.body || document.documentElement).appendChild(workBadge);
+    return workBadge;
+  }
+
+  function showWorkBadge() {
+    clearTimeout(badgeHideTimer);
+    const badge = ensureBadge();
+    badge.classList.toggle("vibrating", inProgress);
+    badge.classList.add("visible");
+  }
+
+  function hideWorkBadge() {
+    if (!workBadge) return;
+    // Stop vibrating, but leave the badge up briefly so the user can
+    // see the extension finished its pass.
+    workBadge.classList.remove("vibrating");
+    clearTimeout(badgeHideTimer);
+    badgeHideTimer = setTimeout(() => {
+      if (workBadge) workBadge.classList.remove("visible");
+    }, 5000);
+  }
 
   /* =========================================================
    * Shared utilities
@@ -304,6 +410,7 @@
     if (toHandle.length === 0) return;
 
     inProgress = true;
+    showWorkBadge();
     try {
       for (const box of toHandle) {
         const action = findExactControl(PRIMARY_LABELS, box);
@@ -345,6 +452,7 @@
       // ignore
     } finally {
       inProgress = false;
+      hideWorkBadge();
     }
   }
 
@@ -359,6 +467,7 @@
     appliedKeys.clear();
     inProgress = false;
     attemptCounts.clear();
+    hideWorkBadge();
   }
 
   function startObserver() {
